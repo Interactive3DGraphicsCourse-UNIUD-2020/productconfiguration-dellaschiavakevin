@@ -26,13 +26,10 @@
         ShaderMaterial,
         UniformsLib,
         UniformsUtils,
+        PCFSoftShadowMap,
 
         Vector3,
     } from "three";
-
-    import {
-        OBJLoader
-    } from 'three/examples/jsm/loaders/OBJLoader';
 
     import {
         OrbitControls
@@ -45,6 +42,14 @@
     import {
         StudioLights
     } from "@/classes/StudioLights";
+
+    import {
+        AssetLoader
+    } from "@/classes/AssetLoader";
+
+    import {
+        PBRMaterial
+    } from "@/classes/PBRMaterial";
 
     export default {
         name: "Renderer",
@@ -76,6 +81,9 @@
                 isError: false,
                 error: null, //the instance of the error
                 errorMessage: '',
+
+                //Components that manages the asset loading
+                assetLoader: null,
 
                 //Components of the mesh that will be displayed
                 activeModel: null,
@@ -122,7 +130,11 @@
                 this.renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
                 this.renderer.setClearColor(0xbdc3c7,0.0);
 
+                //Lights ans shadows
                 this.renderer.physicallyCorrectLights = true;
+                this.renderer.shadowMap.enabled = true;
+                this.renderer.shadowMap.type = PCFSoftShadowMap;
+
 
                 //Init scene
                 this.scene = new Scene();
@@ -134,64 +146,14 @@
                 this.camera_settings.far = 1000;
 
                 this.camera = new PerspectiveCamera(this.camera_settings.FOV,
-                                                    this.camera_settings.aspectRatio,
-                                                    this.camera_settings.near,
-                                                    this.camera_settings.far);
+                    this.camera_settings.aspectRatio,
+                    this.camera_settings.near,
+                    this.camera_settings.far);
 
                 var controls = new OrbitControls(this.camera, canvas);
                 this.camera.position.set(2, 2, 2);
-                this.camera.lookAt(new Vector3(0,0,0))
+                this.camera.lookAt(new Vector3(0,4,0));
                 controls.update();
-            },
-
-            loadModel: (modelLink) => {
-                return new Promise((resolve, reject) => {
-                    var loader = new OBJLoader();
-
-                    loader.load(
-                        modelLink,
-                        (file) => {
-                            resolve(file);
-                        },null,
-                        (error) => {
-                            reject(error);
-                        }
-                    )
-                })
-            },
-
-            loadShaders: (folder) => {
-                return Promise.all([
-                    fetch(folder + 'VertexShader.glsl').then((x) => x.text()),
-                    fetch(folder + 'FragmentShader.glsl').then((x) => x.text()),
-                ])
-            },
-
-            //Base Url + materials folder + name of the material + filetype of the textures
-            //Load all the textures required for the pbr shader
-            //1. Diffuse
-            //2. Specular
-            //3. Roughness
-            //4. normal
-            //TODO: Put this method as a TextureSet method
-            loadPBRTextures: (folder, materialName, filetype='jpg') => {
-                var textures = [
-                    'diffuse',
-                    'roughness',
-                    'normal'
-                ];
-                var promises = [];
-                textures.forEach((textureName) => {
-                    promises.push(new Promise((resolve, reject) => {
-                        var loader = new TextureLoader();
-                        loader.load(folder + materialName + '/' + textureName + '.' + filetype,
-                            (texture) => {resolve(texture);},
-                            (error) => {reject(error)}
-                        );
-                    }))
-                });
-
-                return Promise.all(promises);
             },
 
             swapTextures: (textureSetName) => {
@@ -236,43 +198,21 @@
                 this.activeMesh.material.needsUpdate = true;
             },
 
-            createShaderFrom: (vxShader, fgShader, textures) => {
-                //Merge uniforms to enable custom shader to be lit by
-                //threejs lights
-                const mergedUniforms = UniformsUtils.merge([
-                    UniformsLib['lights'],
-                    UniformsLib['ambient'],
-                    {
-                        diffuse: {} ,
-                        roughness: {},
-                        normalmap: {}
-                    }]);
-                //Directly merging already assigned textures to the uniform
-                //doesn't work per
-                //https://github.com/mrdoob/three.js/issues/8016
-                mergedUniforms.diffuse = { type: 't', value:textures.diffuse };
-                mergedUniforms.roughness = { type: 't', value:textures.roughness };
-                mergedUniforms.normalmap = { type: 't', value:textures.normalmap };
-                const shader = new ShaderMaterial({
-                    vertexShader: vxShader,
-                    fragmentShader: fgShader,
-                    uniforms: mergedUniforms,
-                    lights: true
-                });
-                return shader;
-            }
         },
 
         mounted() {
             this.initRendering();
 
+            //Create the asset loader
+            this.assetLoader = new AssetLoader();
+
             //Create point lights
-            this.lights = new StudioLights(5, 0x404040, 1, 100, 2, 4);
+            const geom = new SphereGeometry(5, 4, 4);
+            this.lights = new StudioLights( 0x404040, 1, 100, 2, geom);
             //this.lights.displayReferenceGeometry();
             this.scene.add(this.lights);
 
             this.scene.add(new GridHelper(10,10))
-
 
             //Start the rendering
             this.animate();
@@ -288,7 +228,7 @@
 
             Promise.all([
                 //Model
-                this.loadModel('./assets/models/shaderball/shaderball.obj')
+                this.assetLoader.loadModel('./assets/models/chair/Chair.obj')
                     .then(function(model) {
                         return model;
                     })
@@ -296,7 +236,7 @@
                         console.log(error);
                     }),
                 //Shaders
-                this.loadShaders('./assets/shaders/CookTorrance/')
+                this.assetLoader.loadShaders('./assets/shaders/CookTorrance/')
                     .then(function([vertexShader, fragmentShader]) {
                         return {
                             vertex: vertexShader,
@@ -308,7 +248,7 @@
                     }),
                 //Load Textures only for fixed unmutable materials
                 //and the one default material
-                this.loadPBRTextures('./assets/textures/', defaultMaterial, 'png')
+                this.assetLoader.loadPBRTextures('./assets/textures/', defaultMaterial, 'png')
                     .then(function([diffuse, roughness, normal]) {
                         return {
                             diffuse: diffuse,
@@ -319,7 +259,7 @@
                     .catch(function(error) {
                         console.log(error);
                     }),
-                this.loadPBRTextures('./assets/textures/', 'metal_2', 'png')
+                this.assetLoader.loadPBRTextures('./assets/textures/', 'wood_1', 'png')
                     .then(function([diffuse, roughness, normal]) {
                         return {
                             diffuse: diffuse,
@@ -330,7 +270,7 @@
                     .catch(function(error) {
                         console.log(error);
                     }),
-                this.loadPBRTextures('./assets/textures/', 'metal_Rust', 'png')
+                this.assetLoader.loadPBRTextures('./assets/textures/', 'wood_2', 'png')
                     .then(function([diffuse, roughness, normal]) {
                         return {
                             diffuse: diffuse,
@@ -341,42 +281,44 @@
                     .catch(function(error) {
                         console.log(error);
                     }),
-            ]).then(([model, shaders, defaultMaterialTextures, baseOutsideMaterial, baseInsideMaterial]) => {
-                //Compose and add to scene
-                //Create pbr shader
+                this.assetLoader.loadPBRTextures('./assets/textures/', 'fabric', 'jpg')
+                    .then(function([diffuse, roughness, normal]) {
+                        return {
+                            diffuse: diffuse,
+                            roughness: roughness,
+                            normalmap: normal
+                        }
+                    })
+                    .catch(function(error) {
+                        console.log(error);
+                    })
+            ]).then(
+                ([model, shaders, defaultMaterialTextures, wood1, wood2, fabric]) => {
+                    //Compose and add to scene
+                    //Create pbr shader
 
-                var defaultMaterialShader = this.createShaderFrom(shaders.vertex, shaders.fragment, defaultMaterialTextures);
-                var baseOutsideShader = this.createShaderFrom(shaders.vertex, shaders.fragment, baseOutsideMaterial);
-                var baseInsideShader = this.createShaderFrom(shaders.vertex, shaders.fragment, baseInsideMaterial);
+                    var wood1Material = new PBRMaterial(shaders.vertex, shaders.fragment, wood1).getShader();
+                    var wood2Material = new PBRMaterial(shaders.vertex, shaders.fragment, wood2).getShader();
+                    var fabricMaterial = new PBRMaterial(shaders.vertex, shaders.fragment, fabric).getShader();
 
-                var components = {
-                    prefix: 'ShaderBall',
-                    names: [
-                        'BaseInside',
-                        'BaseOutside',
-                        'BallInside',
-                        'BallOutside',
-                        'Sides'
-                    ]
-                }
+                    console.log(model);
 
-                model.scale.set(0.1,0.1,0.1);
-                //Apply material to single meshes
-                model.getObjectByName("ShaderBall:BaseInside").material = baseInsideShader;
-                model.getObjectByName("ShaderBall:BaseOutside").material = baseOutsideShader;
+                    model.scale.set(0.4,0.4,0.4);
+                    model.getObjectByName("Chair:Back").material = wood1Material;
+                    model.getObjectByName("Chair:Legs").material = wood2Material;
+                    model.getObjectByName("Chair:Support").material = wood2Material;
+                    model.getObjectByName("Chair:Foam").material = fabricMaterial;
 
+                    //Set loaded mesh as the active mesh
+                    //Create new TextureSet with textures and add to the array of loaded textures
+                    this.textureSets = [];
+                    const textureSet = new PBRTextureSet(defaultMaterial, defaultMaterialTextures);
+                    this.textureSets.push(textureSet);
+                    this.activeTextureSet = defaultMaterial;
 
-
-                //Set loaded mesh as the active mesh
-                //Create new TextureSet with textures and add to the array of loaded textures
-                this.textureSets = [];
-                const textureSet = new PBRTextureSet(defaultMaterial, defaultMaterialTextures);
-                this.textureSets.push(textureSet);
-                this.activeTextureSet = defaultMaterial;
-
-                this.activeModel = model;
-                this.scene.add(model);
-            });
+                    this.activeModel = model;
+                    this.scene.add(model);
+                });
 
             //Listen for window resize event
             window.addEventListener('resize', this.onResize);
@@ -390,7 +332,7 @@
             window.removeEventListener('resize', this.onResize);
         }
 
-        }
+    }
 </script>
 
 <style scoped>

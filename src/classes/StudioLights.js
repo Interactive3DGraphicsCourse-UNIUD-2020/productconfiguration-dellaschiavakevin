@@ -11,17 +11,16 @@ import {
 export class StudioLights extends Object3D {
 
     //Create a sphere of lights around the center
-    //of the object, the radius specifies the distance
-    //between one light and the center
+    //of the object
     //every light will have the same color and intensity
     //color: hex
     //intensity: number
-    //nOfPoints: number of width and height segment of the reference sphere around
-    //           the object center
-    constructor(radius, color, intensity, distance, decay, nOfPoints = 4){
+    //referenceGeometry: THREEJS geometry, every light will be added
+    //                   to every vertex position
+    constructor(color, intensity, distance, decay, referenceGeometry){
         super();
 
-        this.referenceGeometry = new SphereGeometry(radius, nOfPoints, nOfPoints);
+        this.referenceGeometry = referenceGeometry;
 
         this.lights = {
             color: color,
@@ -45,12 +44,29 @@ export class StudioLights extends Object3D {
                     this.lights.intensity,
                     this.lights.distance,
                     this.lights.decay);
+                //setup light
+                this.setupShadows(light);
+
                 light.position.set(vertex.x, vertex.y, vertex.z);
 
                 this.add(light);
                 this.lights.objects.push(light);
             }
         )
+    }
+
+    setupShadows(light){
+        light.castShadow = true;
+        light.shadow.mapSize.width = 512;
+        light.shadow.mapSize.height = 512;
+        light.shadow.camera.near = 0.2;
+        //Since we are building a product visualizer our
+        //objects will be placed very near each other
+        light.shadow.camera.far = 5;
+    }
+
+    lights(){
+        return this.lights.objects;
     }
 
     displayReferenceGeometry(){
