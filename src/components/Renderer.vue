@@ -62,6 +62,63 @@
 
         data: () => {
             return {
+                //Configuration data
+                dataModel: {
+                    model: {
+                        //Name of the model
+                        name: '',
+                        filetype: '',
+                        //Array of model components and
+                        //relative material
+                        components: [
+                            {
+                                //Name of the model component
+                                name:'',
+                                //Name of the active material
+                                //(must be in the options array)
+                                material: null,
+                                //Names of choiches
+                                options: []
+                            }
+                        ],
+                        //All the materials, every component must
+                        //reference a material in this array
+                        materials:[
+                            {
+                                name: '', //Name of the material
+                                filetype: '', //Filetype of the material textures
+                            }
+                        ]
+                    }
+                },
+
+                //Actual model and materials
+                //corresponding to the data model
+                configuratorModel: {
+                    model: {
+                        name: '', //Name of the mesh same as in the dataModel
+                        mesh: null, //The complete group of meshes
+                        shaders: null, //Shaders used in the materials
+                        components: [   //Components in the mesh
+                            {
+                                name: '', //Name of the component same as in dataMesh
+                                mesh: null, //Mesh of the component,
+                                material: null, //PBRMaterial of the component
+                            }
+                        ],
+                        //Array of PBRMaterials
+                        materials: []
+                    }
+                },
+
+                //Server Side path info
+                base_paths: {
+                    models: './assets/models/',
+                    textures: './assets/textures/',
+                    shaders: './assets/shaders/'
+                },
+
+                //Rendering data
                 renderer: null,
                 scene: null,
                 camera: null,
@@ -85,12 +142,6 @@
                 //Components that manages the asset loading
                 assetLoader: null,
 
-                //Components of the mesh that will be displayed
-                activeModel: null,
-                //Array of texturesets object
-                textureSets: [],
-                //Active textureset name
-                activeTextureSet: null
             }
         },
 
@@ -156,46 +207,148 @@
                 controls.update();
             },
 
-            swapTextures: (textureSetName) => {
-                //Check if texture set has already been downloaded
-                for (let textureSet in this.textureSets) {
-                    //if the texture set is already downloaded
-                    if(textureSet.name() == textureSetName){
-                        this.loadTextureSet(textureSet);
-                        return ;
+            initDataModel(){
+                return {
+                    model: {
+                        name: 'Chair',
+                        filetype: 'obj',
+                        components: [
+                            {
+                                name: 'Back',
+                                material: 'wood_1',
+                                options: [ 'wood_1', 'wood_2' ]
+                            },
+                            {
+                                name: 'Legs',
+                                material: 'wood_2',
+                                options: [ 'wood_1', 'wood_2']
+                            },
+                            {
+                                name: 'Support',
+                                material: 'wood_1',
+                                options: [ 'wood_1', 'wood_2']
+                            },
+                            {
+                                name: 'Foam',
+                                material: 'fabric',
+                                options: [ 'fabric', 'fabric']
+                            }
+                        ],
+                        materials: [
+                            { name: 'wood_1', filetype: 'png' },
+                            { name: 'wood_2', filetype: 'png' },
+                            { name: 'fabric', filetype: 'jpg' },
+                        ]
                     }
                 }
 
-                //If it's not in the textureSets array we need to downloand the textures
-                this.loadPBRTextures('./assets/textures/', textureSetName).then(
-                    function([diffuse, roughness, normal]){
-                        //create and add the texture set to the already downloaded sets
-                        const txtSet = new PBRTextureSet(textureSetName, {
-                            diffuse: diffuse,
-                            roughness: roughness,
-                            normalmap: normal
-                        });
+            },
 
-                        this.textureSets.push(txtSet);
-                        this.loadTextureSet(txtSet);
-                    }
-                ).catch(
-                    function(error){
-                        console.log(error);
+            initConfiguratorModel(dataModel, model, shaders, materials){
+                console.log(model, shaders, materials);
+
+                const PBRMaterials = [];
+                const components = [];
+
+                this.dataModel.model.components.forEach(
+                    (component) => {
+                        const fullComponentName = this.dataModel.model.name + ':' + component.name;
+
+                        const componentMesh = model.getObjectByName(fullComponentName);
+
+                        //Find the material of the component in materials array
+                        const componentTextureSet = materials.find( (material) => material.name === component.material);
+                        const componentMaterial = new PBRMaterial(
+                            shaders.vertex,
+                            shaders.fragment,
+                            componentTextureSet.textures
+                        );
+                        componentMesh.material = componentMaterial.getShader();
+
+                        PBRMaterials.push(componentMaterial);
+                        components.push({
+                            name: component.name,
+                            mesh: componentMesh,
+                            material: componentMaterial
+                        });
                     }
                 )
 
+                return {
+                    model: {
+                        name: dataModel.model.name,
+                        mesh: model,
+                        shaders: shaders,
+                        components: components,
+                        //Array of PBRTextureSet to keep track of
+                        //material names and
+                        materials: PBRMaterials
+                    }
+                }
             },
 
-            loadTextureSet: (textureSet) => {
-                const newUniforms = {
-                    diffuse: { type: 't', value: textureSet.textures.diffuse } ,
-                    roughness: { type: 't', value: textureSet.textures.roughness },
-                    normalmap: { type: 't', value: textureSet.textures.normalmap }
-                };
-                this.activeTextureSet = textureSet.name();
-                this.activeMesh.material.uniforms = newUniforms;
-                this.activeMesh.material.needsUpdate = true;
+            loadDataModelAssets(dataModel){
+                //Create the asset loader
+                this.assetLoader = new AssetLoader();
+
+                const modelURL = this.base_paths.models + dataModel.model.name + '.' + dataModel.model.filetype;
+                const shadersURL = this.base_paths.shaders + 'CookTorrance/';
+
+                //Load models and shaders
+                var promises = [
+                    this.assetLoader.loadModel(modelURL)
+                        .then(function(model) {
+                            return model;
+                        })
+                        .catch(function(error) {
+                            console.log(error);
+                        }),
+                    this.assetLoader.loadShaders(shadersURL)
+                        .then(function([vertexShader, fragmentShader]) {
+                            return {
+                                vertex: vertexShader,
+                                fragment: fragmentShader
+                            }
+                        })
+                        .catch(function(error) {
+                            console.log(error);
+                        }),
+                ];
+
+                //Load only the materials assigned to every part of the object
+                const assignedMaterials = [];
+                this.dataModel.model.components.forEach( (component) => assignedMaterials.push(component.material) );
+                //Get all the assigned materials from the materials array
+                //to get the filetypes
+                const materialsToLoad = [];
+                this.dataModel.model.materials.forEach( (material) => {
+                        if ( assignedMaterials.includes(material.name) )
+                            materialsToLoad.push(material);
+                    }
+                );
+
+                const materialPromises = [];
+                materialsToLoad.forEach( (material) => {
+                    const textureUrl = this.base_paths.textures + material.name + '/';
+                    materialPromises.push(
+                        this.assetLoader.loadPBRTextures(textureUrl, material.filetype)
+                            .then(function([diffuse, roughness, normal]) {
+                                const textureSet = new PBRTextureSet(material.name, {
+                                    diffuse: diffuse,
+                                    roughness: roughness,
+                                    normalmap: normal
+                                });
+                                return textureSet;
+                            })
+                            .catch(function(error) {
+                                console.log(error);
+                            })
+                    );
+                });
+                //We want to load all materials in a promise group
+                promises.push(Promise.all(materialPromises));
+
+                return Promise.all(promises)
             },
 
         },
@@ -203,122 +356,40 @@
         mounted() {
             this.initRendering();
 
-            //Create the asset loader
-            this.assetLoader = new AssetLoader();
+            //First loading steps:
+            //1. Load model
+            //2. Load shaders
+            //3. Load textures (only those needed)
+            //perform 1 to 3 in parallel
+            //when every step is finished
+            //Attach everything to scene and display
+
+            this.dataModel = this.initDataModel();
+            this.loadDataModelAssets(this.dataModel).then(
+                ([model, shaders, materials]) => {
+                    this.configuratorModel = this.initConfiguratorModel(
+                        this.dataModel,
+                        model,
+                        shaders,
+                        materials);
+                    this.scene.add(this.configuratorModel.model.mesh);
+                }
+            );
 
             //Create point lights
-            const geom = new SphereGeometry(5, 4, 4);
-            this.lights = new StudioLights( 0x404040, 1, 100, 2, geom);
-            //this.lights.displayReferenceGeometry();
+            this.lights = new StudioLights(
+                0x404040,
+                1,
+                100,
+                2,
+                new SphereGeometry(5, 4, 4));
+            this.lights.turnOnShadows();
             this.scene.add(this.lights);
 
             this.scene.add(new GridHelper(10,10))
 
             //Start the rendering
             this.animate();
-
-            //First loading steps:
-            //1. Load model
-            //2. Load shaders
-            //3. Load textures (only those needed)
-            //perform 1 to 3 in parallel, when every step is finished
-            //Attach everything to scene and display
-
-            const defaultMaterial = 'concrete';
-
-            Promise.all([
-                //Model
-                this.assetLoader.loadModel('./assets/models/chair/Chair.obj')
-                    .then(function(model) {
-                        return model;
-                    })
-                    .catch(function(error) {
-                        console.log(error);
-                    }),
-                //Shaders
-                this.assetLoader.loadShaders('./assets/shaders/CookTorrance/')
-                    .then(function([vertexShader, fragmentShader]) {
-                        return {
-                            vertex: vertexShader,
-                            fragment: fragmentShader
-                        }
-                    })
-                    .catch(function(error) {
-                        console.log(error);
-                    }),
-                //Load Textures only for fixed unmutable materials
-                //and the one default material
-                this.assetLoader.loadPBRTextures('./assets/textures/', defaultMaterial, 'png')
-                    .then(function([diffuse, roughness, normal]) {
-                        return {
-                            diffuse: diffuse,
-                            roughness: roughness,
-                            normalmap: normal
-                        }
-                    })
-                    .catch(function(error) {
-                        console.log(error);
-                    }),
-                this.assetLoader.loadPBRTextures('./assets/textures/', 'wood_1', 'png')
-                    .then(function([diffuse, roughness, normal]) {
-                        return {
-                            diffuse: diffuse,
-                            roughness: roughness,
-                            normalmap: normal
-                        }
-                    })
-                    .catch(function(error) {
-                        console.log(error);
-                    }),
-                this.assetLoader.loadPBRTextures('./assets/textures/', 'wood_2', 'png')
-                    .then(function([diffuse, roughness, normal]) {
-                        return {
-                            diffuse: diffuse,
-                            roughness: roughness,
-                            normalmap: normal
-                        }
-                    })
-                    .catch(function(error) {
-                        console.log(error);
-                    }),
-                this.assetLoader.loadPBRTextures('./assets/textures/', 'fabric', 'jpg')
-                    .then(function([diffuse, roughness, normal]) {
-                        return {
-                            diffuse: diffuse,
-                            roughness: roughness,
-                            normalmap: normal
-                        }
-                    })
-                    .catch(function(error) {
-                        console.log(error);
-                    })
-            ]).then(
-                ([model, shaders, defaultMaterialTextures, wood1, wood2, fabric]) => {
-                    //Compose and add to scene
-                    //Create pbr shader
-
-                    var wood1Material = new PBRMaterial(shaders.vertex, shaders.fragment, wood1).getShader();
-                    var wood2Material = new PBRMaterial(shaders.vertex, shaders.fragment, wood2).getShader();
-                    var fabricMaterial = new PBRMaterial(shaders.vertex, shaders.fragment, fabric).getShader();
-
-                    console.log(model);
-
-                    model.scale.set(0.4,0.4,0.4);
-                    model.getObjectByName("Chair:Back").material = wood1Material;
-                    model.getObjectByName("Chair:Legs").material = wood2Material;
-                    model.getObjectByName("Chair:Support").material = wood2Material;
-                    model.getObjectByName("Chair:Foam").material = fabricMaterial;
-
-                    //Set loaded mesh as the active mesh
-                    //Create new TextureSet with textures and add to the array of loaded textures
-                    this.textureSets = [];
-                    const textureSet = new PBRTextureSet(defaultMaterial, defaultMaterialTextures);
-                    this.textureSets.push(textureSet);
-                    this.activeTextureSet = defaultMaterial;
-
-                    this.activeModel = model;
-                    this.scene.add(model);
-                });
 
             //Listen for window resize event
             window.addEventListener('resize', this.onResize);

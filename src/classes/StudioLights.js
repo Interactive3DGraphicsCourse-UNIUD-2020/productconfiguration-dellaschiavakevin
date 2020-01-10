@@ -44,9 +44,6 @@ export class StudioLights extends Object3D {
                     this.lights.intensity,
                     this.lights.distance,
                     this.lights.decay);
-                //setup light
-                this.setupShadows(light);
-
                 light.position.set(vertex.x, vertex.y, vertex.z);
 
                 this.add(light);
@@ -55,14 +52,26 @@ export class StudioLights extends Object3D {
         )
     }
 
-    setupShadows(light){
-        light.castShadow = true;
-        light.shadow.mapSize.width = 512;
-        light.shadow.mapSize.height = 512;
-        light.shadow.camera.near = 0.2;
-        //Since we are building a product visualizer our
-        //objects will be placed very near each other
-        light.shadow.camera.far = 5;
+    turnOnShadows(){
+        this.lights.objects.forEach(
+            (light) => {
+                light.castShadow = true;
+                light.shadow.mapSize.width = 512;
+                light.shadow.mapSize.height = 512;
+                light.shadow.camera.near = 0.2;
+                //Since we are building a product visualizer our
+                //objects will be placed very near each other
+                light.shadow.camera.far = 5;
+            }
+        )
+    }
+
+    turnOffShadows(light){
+        this.lights.objects.forEach(
+            (light) => {
+                light.castShadow = false;
+            }
+        )
     }
 
     lights(){

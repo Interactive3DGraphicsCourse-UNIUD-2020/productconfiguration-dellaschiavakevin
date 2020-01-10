@@ -45,7 +45,7 @@ export class AssetLoader{
     //3. Roughness
     //4. normal
     //Material = Shader + Textures
-    loadPBRTextures(folder, materialName, filetype='jpg') {
+    loadPBRTextures(materialUrl, filetype='jpg') {
         var textures = [
             'diffuse',
             'roughness',
@@ -55,7 +55,7 @@ export class AssetLoader{
         textures.forEach((textureName) => {
             promises.push(new Promise((resolve, reject) => {
                 var loader = new TextureLoader();
-                loader.load(folder + materialName + '/' + textureName + '.' + filetype,
+                loader.load(materialUrl + textureName + '.' + filetype,
                     (texture) => {resolve(texture);},
                     (error) => {reject(error)}
                 );
