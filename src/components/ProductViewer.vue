@@ -1,30 +1,52 @@
 <template>
     <div class='full-container'>
-        <Renderer />
-        <div class='aside'>
-            <el-card>
-                <div slot="header">
-                    <span><b>Chair Configurator</b></span>
-                </div>
-                <div>
-                    <el-tabs v-model="activeName">
-                        <el-tab-pane type="card"
-                                     v-for="component in model.components"
-                                     :key="component.name"
-                                     :label="component.name"
-                                     :name="component.name">
-                            Material
-                            <el-select v-model="model.components[model.components.indexOf(component)].material" placeholder="Material">
-                                <el-option v-for="option in component.options"
-                                           :key="option"
-                                           :label="option"
-                                           :value="option" />
-                            </el-select>
-                        </el-tab-pane>
-                    </el-tabs>
-                </div>
-            </el-card>
-        </div>
+        <Renderer :options="options" :configuration="configuration"/>
+        <div class='aside' v-if="showConfigurator">
+                <el-card>
+                    <div slot="header">
+                        <span><b>Materials</b></span>
+                    </div>
+                    <div>
+                        <el-tabs v-model="activeName">
+                            <el-tab-pane type="card"
+                                         v-for="component in configuration.model.components"
+                                         :key="component.name"
+                                         :label="component.name"
+                                         :name="component.name">
+                                Material
+                                <el-select v-model="configuration.model.components[configuration.model.components.indexOf(component)].material" placeholder="Material">
+                                    <el-option v-for="option in component.options"
+                                               :key="option"
+                                               :label="option"
+                                               :value="option" />
+                                </el-select>
+                            </el-tab-pane>
+                        </el-tabs>
+                    </div>
+
+                </el-card>
+                <p></p>
+                <el-card>
+                    <div slot="header">
+                        <span><b>Lights</b></span>
+                    </div>
+                    <div>
+                        <span>Intensity</span>
+                        <el-slider v-model="options.lights.intensity"
+                                   :step="1"
+                                   :min="1.0"
+                                   :max="5.0"
+                                   show-stops />
+                    </div>
+                    <div class="vertical-align">
+                        <span>Color</span>
+                        <el-color-picker v-model="options.lights.color"
+                                         size="small"
+                                         color-format="hex"/>
+                    </div>
+
+                </el-card>
+            </div>
     </div>
 </template>
 
@@ -34,41 +56,59 @@
     export default {
         name: "ProductViewer",
         components: {
-            Renderer
+            Renderer,
+        },
+        props: {
+            showConfigurator: {
+                type: Boolean,
+                required: false,
+                default: true
+            }
         },
         data: () => {
             return {
                 activeName: 'Back',
-                model: {
-                    name: 'Chair',
-                    filetype: 'obj',
-                    components: [
-                        {
-                            name: 'Back',
-                            material: 'wood_1',
-                            options: [ 'wood_1', 'wood_2' ]
-                        },
-                        {
-                            name: 'Legs',
-                            material: 'wood_2',
-                            options: [ 'wood_1', 'wood_2']
-                        },
-                        {
-                            name: 'Support',
-                            material: 'wood_1',
-                            options: [ 'wood_1', 'wood_2']
-                        },
-                        {
-                            name: 'Foam',
-                            material: 'fabric',
-                            options: [ 'fabric' ]
-                        }
-                    ],
-                    materials: [
-                        { name: 'wood_1', filetype: 'png' },
-                        { name: 'wood_2', filetype: 'png' },
-                        { name: 'fabric', filetype: 'jpg' },
-                    ]
+
+                options: {
+                    lights: {
+                        intensity: 1.0,
+                        color: '#404040'
+                    }
+                },
+
+                //Component data
+                configuration: {
+                    model: {
+                        name: 'Chair',
+                        filetype: 'obj',
+                        components: [
+                            {
+                                name: 'Back',
+                                material: 'wood_1',
+                                options: ['wood_1', 'wood_2']
+                            },
+                            {
+                                name: 'Legs',
+                                material: 'wood_1',
+                                options: ['wood_1', 'wood_2']
+                            },
+                            {
+                                name: 'Support',
+                                material: 'wood_1',
+                                options: ['wood_1']
+                            },
+                            {
+                                name: 'Foam',
+                                material: 'fabric',
+                                options: ['fabric']
+                            }
+                        ],
+                        materials: [
+                            {name: 'wood_1', filetype: 'png'},
+                            {name: 'wood_2', filetype: 'png'},
+                            {name: 'fabric', filetype: 'jpg'},
+                        ]
+                    }
                 }
             }
         },
@@ -85,11 +125,32 @@
 
     }
 
-    .aside {
-        position: absolute;
-        right: 20px;
-        top: 20px;
+    @media only screen and (max-width: 700px) {
+        .aside {
+            position: relative;
+            display: block;
+        }
 
+        .full-container {
+            height: 70%;
+        }
+
+    }
+
+    @media only screen and (min-width: 700px) {
+        .aside {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+        }
+    }
+
+    .vertical-align {
+        display: flex;
+        flex-flow: row;
+
+        justify-content: space-between;
+        align-items: center;
     }
 
 </style>

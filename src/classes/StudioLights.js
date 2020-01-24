@@ -3,7 +3,7 @@ import {
     Object3D,
     PointLight,
     SphereGeometry,
-    Mesh
+    Mesh, Color
 } from "three";
 
 //Class to create and control
@@ -70,6 +70,23 @@ export class StudioLights extends Object3D {
         this.lights.objects.forEach(
             (light) => {
                 light.castShadow = false;
+            }
+        )
+    }
+
+    setIntensity(val){
+        this.lights.objects.forEach(
+            (light) => {
+                light.intensity = val;
+            }
+        )
+    }
+
+    //Set the color of all the lights using a CSS hex format (#FFFFFF)
+    setColor(val){
+        this.lights.objects.forEach(
+            (light) => {
+                light.color.setHex(val.replace('#','0x'));
             }
         )
     }

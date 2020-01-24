@@ -50,19 +50,32 @@
     import {
         PBRMaterial
     } from "@/classes/PBRMaterial";
+    import {LengthDimension} from "@/classes/LengthDimension";
 
     export default {
         name: "Renderer",
 
-        props: [
-            "model",
-            "lightsColor",
-            "lightsIntensity"
-        ],
+        props: {
+            configuration: {
+                type: Object,
+                required: true
+            },
+            options: {
+                type: Object,
+                required: false,
+                default: () => ({
+                    lights: {
+                        intensity: 1,
+                        color: 0x404040
+                    }
+                })
+            }
+        },
 
         data: () => {
             return {
-                //Configuration data
+                //Configuration data example
+                /*
                 dataModel: {
                     model: {
                         //Name of the model
@@ -91,6 +104,8 @@
                         ]
                     }
                 },
+                */
+
 
                 //Actual model and materials
                 //corresponding to the data model
@@ -160,7 +175,7 @@
                 canvas.height = canvasContainer.clientHeight;
 
                 this.camera_settings.aspectRatio = canvasContainer.clientWidth / canvasContainer.clientHeight;
-                this.camera.aspectRatio = this.camera_settings.aspectRatio
+                this.camera.aspectRatio = this.camera_settings.aspectRatio;
 
                 this.renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
             },
@@ -186,7 +201,6 @@
                 this.renderer.shadowMap.enabled = true;
                 this.renderer.shadowMap.type = PCFSoftShadowMap;
 
-
                 //Init scene
                 this.scene = new Scene();
 
@@ -202,11 +216,23 @@
                     this.camera_settings.far);
 
                 var controls = new OrbitControls(this.camera, canvas);
+                controls.enablePan = false;
                 this.camera.position.set(2, 2, 2);
                 this.camera.lookAt(new Vector3(0,4,0));
                 controls.update();
             },
 
+            //Method called when the model in the
+            //configuratorModel is ready to be displayed
+            readyToDisplay(configuratorModel){
+                configuratorModel.model.mesh.scale.set(0.35, 0.35, 0.35);
+                configuratorModel.model.mesh.rotateY(180 * Math.PI/180);
+
+                //Set camera to look at the center of the loaded model
+                this.scene.add(configuratorModel.model.mesh);
+            },
+
+            /*
             initDataModel(){
                 return {
                     model: {
@@ -243,29 +269,33 @@
                 }
 
             },
-
+             */
             initConfiguratorModel(dataModel, model, shaders, materials){
                 console.log(model, shaders, materials);
 
                 const PBRMaterials = [];
+                materials.forEach((textureSet) => {
+                    PBRMaterials.push(
+                        new PBRMaterial(
+                            textureSet.name,
+                            shaders.vertex,
+                            shaders.fragment,
+                            textureSet.textures
+                        )
+                    )
+                });
                 const components = [];
 
-                this.dataModel.model.components.forEach(
+                dataModel.model.components.forEach(
                     (component) => {
-                        const fullComponentName = this.dataModel.model.name + ':' + component.name;
+                        const fullComponentName = dataModel.model.name + ':' + component.name;
 
                         const componentMesh = model.getObjectByName(fullComponentName);
 
                         //Find the material of the component in materials array
-                        const componentTextureSet = materials.find( (material) => material.name === component.material);
-                        const componentMaterial = new PBRMaterial(
-                            shaders.vertex,
-                            shaders.fragment,
-                            componentTextureSet.textures
-                        );
+                        const componentMaterial = PBRMaterials.find( (material) => material.name === component.material);
                         componentMesh.material = componentMaterial.getShader();
 
-                        PBRMaterials.push(componentMaterial);
                         components.push({
                             name: component.name,
                             mesh: componentMesh,
@@ -287,7 +317,8 @@
                 }
             },
 
-            loadDataModelAssets(dataModel){
+            loadDataModelAssets(dataModel, loadUnusedMaterials = false){
+
                 //Create the asset loader
                 this.assetLoader = new AssetLoader();
 
@@ -315,17 +346,20 @@
                         }),
                 ];
 
-                //Load only the materials assigned to every part of the object
-                const assignedMaterials = [];
-                this.dataModel.model.components.forEach( (component) => assignedMaterials.push(component.material) );
-                //Get all the assigned materials from the materials array
-                //to get the filetypes
-                const materialsToLoad = [];
-                this.dataModel.model.materials.forEach( (material) => {
-                        if ( assignedMaterials.includes(material.name) )
-                            materialsToLoad.push(material);
-                    }
-                );
+                var materialsToLoad = [];
+                if(loadUnusedMaterials == true){
+                    materialsToLoad = dataModel.model.materials;
+                }else{
+                    const assignedMaterials = [];
+                    dataModel.model.components.forEach( (component) => assignedMaterials.push(component.material) );
+                    //Get all the assigned materials from the materials array
+                    //to get the filetypes
+                    dataModel.model.materials.forEach( (material) => {
+                            if ( assignedMaterials.includes(material.name) )
+                                materialsToLoad.push(material);
+                        }
+                    );
+                }
 
                 const materialPromises = [];
                 materialsToLoad.forEach( (material) => {
@@ -354,8 +388,8 @@
         },
 
         mounted() {
-            this.initRendering();
 
+            this.initRendering();
             //First loading steps:
             //1. Load model
             //2. Load shaders
@@ -364,37 +398,67 @@
             //when every step is finished
             //Attach everything to scene and display
 
-            this.dataModel = this.initDataModel();
-            this.loadDataModelAssets(this.dataModel).then(
+            //this.dataModel = this.initDataModel();
+            this.loadDataModelAssets(this.configuration, true).then(
                 ([model, shaders, materials]) => {
                     this.configuratorModel = this.initConfiguratorModel(
-                        this.dataModel,
+                        this.configuration,
                         model,
                         shaders,
                         materials);
-                    this.scene.add(this.configuratorModel.model.mesh);
+                    this.readyToDisplay(this.configuratorModel);
                 }
             );
 
+
             //Create point lights
             this.lights = new StudioLights(
-                0x404040,
-                1,
+                this.options.lights.color,
+                this.options.lights.intensity,
                 100,
                 2,
                 new SphereGeometry(5, 4, 4));
-            this.lights.turnOnShadows();
             this.scene.add(this.lights);
 
-            this.scene.add(new GridHelper(10,10))
+            //this.scene.add(new GridHelper(10,10));
+
+            //Setup dimensions
+            var dim = new LengthDimension(2, '2m', 0xaaaaaa);
+            this.scene.add(dim);
 
             //Start the rendering
             this.animate();
+
+            //Listen to changes in the component's materials
+            for (let i = 0; i < this.configuration.model.components.length; i++){
+                const componentName = 'configuration.model.components.' + i + '';
+                this.$watch(componentName,
+                    function (newVal, oldVal) {
+                        //Get the corresponding mesh and the new material
+                        const component = this.configuratorModel.model.components.find((comp) => (comp.name === newVal.name));
+                        const componentMesh = component.mesh;
+                        const componentNewMaterial = this.configuratorModel.model.materials.find( (mat) => (mat.name === newVal.material));
+
+                        componentMesh.material = componentNewMaterial.getShader();
+                        componentMesh.material.needsUpdate = true;
+
+                        component.material = componentNewMaterial;
+
+                    }, {deep: true});
+            }
 
             //Listen for window resize event
             window.addEventListener('resize', this.onResize);
         },
 
+        watch: {
+            'options.lights.intensity': function (newVal, oldVal) {
+                this.lights.setIntensity(newVal);
+            },
+            'options.lights.color': function (newVal, oldVal) {
+                this.lights.setColor(newVal);
+            }
+        },
         updated() {
 
         },

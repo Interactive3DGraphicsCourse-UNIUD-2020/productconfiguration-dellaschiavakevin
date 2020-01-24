@@ -6,7 +6,7 @@ import {
 
 export class PBRMaterial {
 
-    constructor(vxShader, fgShader, textures) {
+    constructor(name, vxShader, fgShader, textures) {
         //Merge uniforms to enable custom shader to be lit by
         //threejs lights
         const mergedUniforms = UniformsUtils.merge([
@@ -30,6 +30,12 @@ export class PBRMaterial {
             lights: true
         });
 
+        this.name = name;
+        this.textures = {
+            diffuse: {} ,
+            roughness: {},
+            normalmap: {}
+        }
         this.shader = shader;
     }
 
