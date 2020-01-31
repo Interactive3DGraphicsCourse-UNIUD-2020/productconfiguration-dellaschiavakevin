@@ -73,7 +73,8 @@
                     lights: {
                         intensity: 1.0,
                         color: '#404040'
-                    }
+                    },
+                    showObjectDimensions: false
                 },
 
                 //Component data
@@ -107,7 +108,11 @@
                             {name: 'wood_1', filetype: 'png'},
                             {name: 'wood_2', filetype: 'png'},
                             {name: 'fabric', filetype: 'jpg'},
-                        ]
+                        ],
+                        envmap: {
+                            name: 'indoor',
+                            filetype: 'png'
+                        }
                     }
                 }
             }

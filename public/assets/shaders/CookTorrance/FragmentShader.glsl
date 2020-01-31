@@ -22,6 +22,8 @@ uniform sampler2D diffuse;
 const   vec3      specular = vec3(0.1);
 uniform sampler2D roughness;
 uniform sampler2D normalmap;
+uniform samplerCube envmap;
+
 
 //Values of textures at point
 vec3 pointDiffuse;

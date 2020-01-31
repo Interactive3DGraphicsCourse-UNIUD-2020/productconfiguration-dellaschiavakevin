@@ -20,12 +20,13 @@ import {
 export class LengthDimension extends Dimension{
 
     //Length to display in units
-    constructor(length, text, color) {
+    constructor(length, text, color, tip = true) {
         super();
 
         this.length = length;
         this.text = text;
         this.color = color;
+        this.tip = tip;
 
         this.init(this.length, this.text, this.color);
     }
@@ -79,34 +80,40 @@ export class LengthDimension extends Dimension{
         const tipHeight = 0.01;
         const tipRadius = radius*4;
 
+        var material = new MeshBasicMaterial({
+            color: color
+        });
+
         const barGeometry = new CylinderBufferGeometry(radius,
             radius,
             length,
             32,
             5);
-        const tipGeometry = new CylinderBufferGeometry(tipRadius,
-            tipRadius,
-            tipHeight,
-            64,
-            10);
 
-        var material = new MeshBasicMaterial({
-            color: color
-        });
 
         //Bar mesh
         var barMesh = new Mesh(barGeometry, material);
-        //Tip meshes
-        var topTipMesh = new Mesh(tipGeometry, material);
-        var bottomTipMesh = new Mesh(tipGeometry, material);
 
-        //Position objects
-        barMesh.add(topTipMesh);
-        barMesh.add(bottomTipMesh);
+        if(this.tip){
+            const tipGeometry = new CylinderBufferGeometry(tipRadius,
+                tipRadius,
+                tipHeight,
+                64,
+                10);
 
-        const tipOffset = length/2 - tipHeight/2;
-        topTipMesh.position.setY(tipOffset);
-        bottomTipMesh.position.setY(-tipOffset);
+            //Tip meshes
+            var topTipMesh = new Mesh(tipGeometry, material);
+            var bottomTipMesh = new Mesh(tipGeometry, material);
+
+            //Position objects
+            barMesh.add(topTipMesh);
+            barMesh.add(bottomTipMesh);
+
+            const tipOffset = length/2 - tipHeight/2;
+            topTipMesh.position.setY(tipOffset);
+            bottomTipMesh.position.setY(-tipOffset);
+        }
+
 
         barMesh.rotateZ( -90 * Math.PI/180);
 

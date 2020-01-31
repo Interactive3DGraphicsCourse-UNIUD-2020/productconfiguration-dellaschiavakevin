@@ -2,6 +2,7 @@
 //Manages all the loading of
 //models, shaders and textures
 import {
+    CubeTextureLoader,
     TextureLoader
 } from "three";
 
@@ -63,6 +64,28 @@ export class AssetLoader{
         });
 
         return Promise.all(promises);
+    }
+
+    loadEnvMap(mapPath, filetype='jpg'){
+        return new Promise((resolve, reject) => {
+            const loader = new CubeTextureLoader();
+            loader.setPath(mapPath+'/');
+            loader.load( [
+                    'px.'+filetype,
+                    'nx.'+filetype,
+                    'py.'+filetype,
+                    'ny.'+filetype,
+                    'pz.'+filetype,
+                    'nz.'+filetype
+                ],
+                (texture) => {
+                    console.log(texture);
+                    resolve(texture)
+                },
+                null,
+                (error) => { reject(error) });
+        });
+
     }
 
 }

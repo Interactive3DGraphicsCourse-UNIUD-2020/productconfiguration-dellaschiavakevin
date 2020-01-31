@@ -23,13 +23,20 @@
 
         Object3D,
 
+        Box3, Box3Helper,
+        LinearMipMapLinearFilter,
+
         ShaderMaterial,
         UniformsLib,
         UniformsUtils,
         PCFSoftShadowMap,
 
-        Vector3,
+        Vector3, ACESFilmicToneMapping
     } from "three";
+
+    import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
+    import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
+    import { SAOPass } from 'three/examples/jsm/postprocessing/SAOPass.js';
 
     import {
         OrbitControls
@@ -67,7 +74,8 @@
                     lights: {
                         intensity: 1,
                         color: 0x404040
-                    }
+                    },
+                    showObjectDimensions: false
                 })
             }
         },
@@ -113,6 +121,7 @@
                     model: {
                         name: '', //Name of the mesh same as in the dataModel
                         mesh: null, //The complete group of meshes
+                        dimensions: null, //Used to show model dimensions
                         shaders: null, //Shaders used in the materials
                         components: [   //Components in the mesh
                             {
@@ -122,7 +131,10 @@
                             }
                         ],
                         //Array of PBRMaterials
-                        materials: []
+                        materials: [],
+                        envmap: {
+                            texture: null
+                        }
                     }
                 },
 
@@ -130,11 +142,13 @@
                 base_paths: {
                     models: './assets/models/',
                     textures: './assets/textures/',
+                    envmaps: './assets/cubemaps/',
                     shaders: './assets/shaders/'
                 },
 
                 //Rendering data
                 renderer: null,
+                composer: null,
                 scene: null,
                 camera: null,
                 lights: null, //StudioLights instance
@@ -163,7 +177,7 @@
         methods: {
             animate: function() {
                 requestAnimationFrame(this.animate);
-                this.renderer.render(this.scene, this.camera);
+                this.composer.render();
             },
 
             onResize: function() {
@@ -176,6 +190,7 @@
 
                 this.camera_settings.aspectRatio = canvasContainer.clientWidth / canvasContainer.clientHeight;
                 this.camera.aspectRatio = this.camera_settings.aspectRatio;
+                this.camera.updateProjectionMatrix();
 
                 this.renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
             },
@@ -196,10 +211,8 @@
                 this.renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
                 this.renderer.setClearColor(0xbdc3c7,0.0);
 
-                //Lights ans shadows
-                this.renderer.physicallyCorrectLights = true;
-                this.renderer.shadowMap.enabled = true;
-                this.renderer.shadowMap.type = PCFSoftShadowMap;
+                this.renderer.toneMapping = ACESFilmicToneMapping;
+                this.renderer.toneMappingWhitePoint = 0.8;
 
                 //Init scene
                 this.scene = new Scene();
@@ -215,21 +228,67 @@
                     this.camera_settings.near,
                     this.camera_settings.far);
 
-                var controls = new OrbitControls(this.camera, canvas);
+                const controls = new OrbitControls(this.camera, canvas);
                 controls.enablePan = false;
-                this.camera.position.set(2, 2, 2);
-                this.camera.lookAt(new Vector3(0,4,0));
+                this.camera.position.set(1, 1, 1);
+                this.camera.lookAt(new Vector3(0,0,0));
                 controls.update();
+
+
+                //Add post processing effects
+                const composer = new EffectComposer(this.renderer);
+                composer.addPass(new RenderPass(this.scene, this.camera));
+                this.composer = composer;
             },
 
             //Method called when the model in the
             //configuratorModel is ready to be displayed
-            readyToDisplay(configuratorModel){
-                configuratorModel.model.mesh.scale.set(0.35, 0.35, 0.35);
-                configuratorModel.model.mesh.rotateY(180 * Math.PI/180);
 
-                //Set camera to look at the center of the loaded model
+            readyToDisplay(configuratorModel){
+                console.log(configuratorModel);
+
+                this.scene.background = configuratorModel.model.envmap.texture;
+                this.scene.environment = configuratorModel.model.envmap.texture;
+
+                //Create the x,y,z indicators to show the dimensions
+                const box = new Box3().setFromObject(configuratorModel.model.mesh);
+                const modelDimensions = this.createModelDimensions(box);
+
+                this.configuratorModel.model.mesh.position.setY(-(box.max.y - box.min.y) / 2);
+
+                this.configuratorModel.model.dimensions = modelDimensions;
+                this.configuratorModel.model.dimensions.visible = this.options.showObjectDimensions;
+                this.configuratorModel.model.mesh.add(modelDimensions);
+
                 this.scene.add(configuratorModel.model.mesh);
+            },
+
+            createModelDimensions(box){
+
+                const modelDimensions = new Object3D();
+
+                const xLength = box.max.x - box.min.x;
+                const yLength = box.max.y - box.min.y;
+                const zLength = box.max.z - box.min.z;
+
+                const xDim = new LengthDimension(xLength, xLength.toFixed(2) + 'm', 0xff0000, false);
+                const yDim = new LengthDimension(yLength, yLength.toFixed(2) + 'm', 0x00ff00, false);
+                const zDim = new LengthDimension(zLength, zLength.toFixed(2) + 'm', 0x0000ff, false);
+
+                xDim.position.setZ(-zLength/2);
+                zDim.position.setX(-xLength/2);
+                zDim.rotateY(90 * Math.PI/180);
+
+                yDim.rotateZ(90 * Math.PI/180);
+                yDim.position.setX(-xLength/2);
+                yDim.position.setZ(-zLength/2);
+                yDim.position.setY(yLength/2);
+
+                modelDimensions.add(xDim);
+                modelDimensions.add(yDim);
+                modelDimensions.add(zDim);
+
+                return modelDimensions;
             },
 
             /*
@@ -270,8 +329,8 @@
 
             },
              */
-            initConfiguratorModel(dataModel, model, shaders, materials){
-                console.log(model, shaders, materials);
+            initConfiguratorModel(dataModel, model, shaders, envmap, materials){
+                console.log(model, shaders, materials, envmap);
 
                 const PBRMaterials = [];
                 materials.forEach((textureSet) => {
@@ -280,7 +339,8 @@
                             textureSet.name,
                             shaders.vertex,
                             shaders.fragment,
-                            textureSet.textures
+                            textureSet.textures,
+                            envmap
                         )
                     )
                 });
@@ -311,8 +371,11 @@
                         shaders: shaders,
                         components: components,
                         //Array of PBRTextureSet to keep track of
-                        //material names and
-                        materials: PBRMaterials
+                        //material names and images
+                        materials: PBRMaterials,
+                        envmap: {
+                            texture: envmap
+                        }
                     }
                 }
             },
@@ -324,6 +387,7 @@
 
                 const modelURL = this.base_paths.models + dataModel.model.name + '.' + dataModel.model.filetype;
                 const shadersURL = this.base_paths.shaders + 'CookTorrance/';
+                const envMapURL = this.base_paths.envmaps + dataModel.model.envmap.name;
 
                 //Load models and shaders
                 var promises = [
@@ -344,6 +408,14 @@
                         .catch(function(error) {
                             console.log(error);
                         }),
+                    this.assetLoader.loadEnvMap(envMapURL, 'png')
+                        .then(function(cubemap){
+                            cubemap.minFilter = LinearMipMapLinearFilter;
+                            return cubemap;
+                        })
+                        .catch(function(error){
+                            console.log(error);
+                        })
                 ];
 
                 var materialsToLoad = [];
@@ -400,11 +472,12 @@
 
             //this.dataModel = this.initDataModel();
             this.loadDataModelAssets(this.configuration, true).then(
-                ([model, shaders, materials]) => {
+                ([model, shaders, envmap, materials]) => {
                     this.configuratorModel = this.initConfiguratorModel(
                         this.configuration,
                         model,
                         shaders,
+                        envmap,
                         materials);
                     this.readyToDisplay(this.configuratorModel);
                 }
@@ -421,10 +494,6 @@
             this.scene.add(this.lights);
 
             //this.scene.add(new GridHelper(10,10));
-
-            //Setup dimensions
-            var dim = new LengthDimension(2, '2m', 0xaaaaaa);
-            this.scene.add(dim);
 
             //Start the rendering
             this.animate();
@@ -457,6 +526,11 @@
             },
             'options.lights.color': function (newVal, oldVal) {
                 this.lights.setColor(newVal);
+            },
+            'options.showObjectDimensions': function(newVal, oldVal){
+                if(this.configuratorModel.model.mesh) {
+                    this.configuratorModel.model.dimensions.visible = newVal;
+                }
             }
         },
         updated() {
