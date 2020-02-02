@@ -13,6 +13,8 @@ struct PointLight {
 //Threejs lights
 uniform PointLight pointLights[NUM_POINT_LIGHTS];
 
+uniform vec3 ambientLightColor;
+
 //Using textures
 //1. Diffuse
 //2. Specular
@@ -77,7 +79,9 @@ void main(){
 
     vec3 n = perturbNormal2Arb(vPosition, normalize( vNormal ));  // interpolation destroys normalization, so we have to normalize
     vec3 v = normalize( -vPosition);
-
+    vec3 worldN = inverseTransformDirection( n, viewMatrix );
+    vec3 worldV = cameraPosition - wPosition ;
+    vec3 r = normalize( reflect(-worldV,worldN));
     float nDotv = max(dot( n, v ),0.000001);
 
     pointDiffuse = texture2D(diffuse, uVv).rgb;
@@ -85,13 +89,19 @@ void main(){
 
     pointSpecular = specular;
 
-    pointRoughness = 1.0 - texture2D(roughness, uVv).r;
+    pointRoughness = texture2D(roughness, uVv).r;
+
+    /*
+    vec3 envLight = textureCube( envmap, vec3(-r.x, r.yz)).rgb;
+    envLight = pow( envLight, vec3(2.2));
+    */
 
     vec4 totalLight = vec4(vec3(0.0), 1.0);
 
     for( int li = 0; li < NUM_POINT_LIGHTS; li++){
         vec3 lightPosition = pointLights[li].position;
         vec3 lightIntensity = pointLights[li].color;
+        float lightDistance = distance(lightPosition, vPosition);
 
         vec4 lPosition = vec4( lightPosition, 1.0 );
         vec3 l = normalize(lPosition.xyz - vPosition.xyz);
@@ -106,12 +116,12 @@ void main(){
         float geometryFactor = GSmith(n, v, l);
         float normalDistribution = DGGX(n, h, pointRoughness*pointRoughness);
 
-        vec3 specularBRDF = ((vec3(1.0) - fresnel)*pointDiffuse/PI) + (fresnel * normalDistribution * geometryFactor) / (4.0 * nDotl * nDotv);
+        vec3 diffuse = ambientLightColor/vec3(NUM_POINT_LIGHTS) + pointDiffuse/PI;
+        vec3 specularBRDF = (fresnel * normalDistribution * geometryFactor) / (4.0 * nDotl * nDotv);
 
-        outRadiance += PI * lightIntensity * nDotl * specularBRDF;
+        outRadiance += PI * lightIntensity * nDotl * (vec3(1.0) - fresnel)*diffuse + fresnel*specularBRDF;
     }
 
     vec4 color = vec4(pow(vec3(outRadiance), vec3(1.0/2.2)),1.0);
-
     gl_FragColor = color;
 }

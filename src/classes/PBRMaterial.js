@@ -18,6 +18,7 @@ export class PBRMaterial {
                 normalmap: {},
                 envmap: {}
             }]);
+        console.log(mergedUniforms);
         //Directly merging already assigned textures to the uniform
         //doesn't work per
         //https://github.com/mrdoob/three.js/issues/8016

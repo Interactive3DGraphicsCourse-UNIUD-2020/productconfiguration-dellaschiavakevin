@@ -63,58 +63,17 @@
                 type: Boolean,
                 required: false,
                 default: true
+            },
+            options: {
+
+            },
+            configuration: {
+
             }
         },
         data: () => {
             return {
                 activeName: 'Back',
-
-                options: {
-                    lights: {
-                        intensity: 1.0,
-                        color: '#404040'
-                    },
-                    showObjectDimensions: false
-                },
-
-                //Component data
-                configuration: {
-                    model: {
-                        name: 'Chair',
-                        filetype: 'obj',
-                        components: [
-                            {
-                                name: 'Back',
-                                material: 'wood_1',
-                                options: ['wood_1', 'wood_2']
-                            },
-                            {
-                                name: 'Legs',
-                                material: 'wood_1',
-                                options: ['wood_1', 'wood_2']
-                            },
-                            {
-                                name: 'Support',
-                                material: 'wood_1',
-                                options: ['wood_1']
-                            },
-                            {
-                                name: 'Foam',
-                                material: 'fabric',
-                                options: ['fabric']
-                            }
-                        ],
-                        materials: [
-                            {name: 'wood_1', filetype: 'png'},
-                            {name: 'wood_2', filetype: 'png'},
-                            {name: 'fabric', filetype: 'jpg'},
-                        ],
-                        envmap: {
-                            name: 'indoor',
-                            filetype: 'png'
-                        }
-                    }
-                }
             }
         },
 

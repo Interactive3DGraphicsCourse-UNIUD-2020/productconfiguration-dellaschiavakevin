@@ -31,7 +31,7 @@
         UniformsUtils,
         PCFSoftShadowMap,
 
-        Vector3, ACESFilmicToneMapping
+        Vector3, ACESFilmicToneMapping, AmbientLight
     } from "three";
 
     import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer.js';
@@ -82,38 +82,6 @@
 
         data: () => {
             return {
-                //Configuration data example
-                /*
-                dataModel: {
-                    model: {
-                        //Name of the model
-                        name: '',
-                        filetype: '',
-                        //Array of model components and
-                        //relative material
-                        components: [
-                            {
-                                //Name of the model component
-                                name:'',
-                                //Name of the active material
-                                //(must be in the options array)
-                                material: null,
-                                //Names of choiches
-                                options: []
-                            }
-                        ],
-                        //All the materials, every component must
-                        //reference a material in this array
-                        materials:[
-                            {
-                                name: '', //Name of the material
-                                filetype: '', //Filetype of the material textures
-                            }
-                        ]
-                    }
-                },
-                */
-
 
                 //Actual model and materials
                 //corresponding to the data model
@@ -211,6 +179,7 @@
                 this.renderer.setSize(canvasContainer.clientWidth, canvasContainer.clientHeight);
                 this.renderer.setClearColor(0xbdc3c7,0.0);
 
+                //Tone Mapping
                 this.renderer.toneMapping = ACESFilmicToneMapping;
                 this.renderer.toneMappingWhitePoint = 0.8;
 
@@ -470,6 +439,18 @@
             //when every step is finished
             //Attach everything to scene and display
 
+            //Create point lights
+            this.lights = new StudioLights(
+                this.options.lights.color,
+                this.options.lights.intensity,
+                100,
+                2,
+                new SphereGeometry(6, 4, 4));
+
+            //create ambient light
+            this.scene.add(new AmbientLight(0x020202));
+            this.scene.add(this.lights);
+
             //this.dataModel = this.initDataModel();
             this.loadDataModelAssets(this.configuration, true).then(
                 ([model, shaders, envmap, materials]) => {
@@ -482,18 +463,6 @@
                     this.readyToDisplay(this.configuratorModel);
                 }
             );
-
-
-            //Create point lights
-            this.lights = new StudioLights(
-                this.options.lights.color,
-                this.options.lights.intensity,
-                100,
-                2,
-                new SphereGeometry(5, 4, 4));
-            this.scene.add(this.lights);
-
-            //this.scene.add(new GridHelper(10,10));
 
             //Start the rendering
             this.animate();
